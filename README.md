@@ -1,215 +1,278 @@
-# Drosera-node
-A protocol that automates live smart contract audit, by monitoring state changes, unique approach to on-chain security: Reward potential
+# Drosera Testnet Node & Trap Setup Guide
+
+> **This guide is a streamlined and complete setup instruction based on a fork of [Moei's guide](https://github.com/0xmoei/Drosera-Network).**
+
+## ✅ System Requirements
+- **2 CPU Cores**
+- **4 GB RAM**
+- **20 GB Disk Space**
+
+👉 Suggested VPS: You can start with a $5/month VPS
+👉 RPC Requirement: Create a Holesky Ethereum RPC using [Alchemy](https://alchemy.com/) or [QuickNode](https://www.quicknode.com/)
 
 ---
-# 🛠️ Complete Drosera Operator VPS Setup Guide
 
-## 🔥 Step 0: Prerequisites
-- Ubuntu 22.04 (or newer) VPS.
-- You have **basic terminal skills** and **root** or **sudo** access.
-- You have (or will generate) a **new ECDSA private key** funded with Holesky ETH.
-- You have an RPC URL for Holesky (e.g., from [publicnode.com](https://ethereum-holesky-rpc.publicnode.com)).
-
----
-
-## 1. Install System Dependencies
+## 1. Install Dependencies
 ```bash
-sudo apt update
-sudo apt install -y curl clang libssl-dev tar ufw
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt install curl ufw iptables build-essential git wget lz4 jq make gcc nano \
+  automake autoconf tmux htop nvme-cli libgbm1 pkg-config libssl-dev libleveldb-dev \
+  tar clang bsdmainutils ncdu unzip -y
 ```
 
-✅ Done installing system packages.
+---
+
+## 2. Install Docker
+```bash
+for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do sudo apt-get remove $pkg; done
+sudo apt-get update
+sudo apt-get install ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update -y && sudo apt upgrade -y
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+
+# Test Docker
+sudo docker run hello-world
+```
 
 ---
 
-## 2. Install `droseraup` Tool
+## 3. Install Required CLIs
 ```bash
+# Drosera CLI
 curl -L https://app.drosera.io/install | bash
-```
+source ~/.bashrc
+droseraup
 
-✅ When it finishes, **run this to activate it**:
-```bash
+# Foundry CLI
+curl -L https://foundry.paradigm.xyz | bash
+source ~/.bashrc
+foundryup
+
+# Bun
+curl -fsSL https://bun.sh/install | bash
 source ~/.bashrc
 ```
 
-(If you forget this step, `droseraup` won't work.)
-
 ---
 
-## 3. Install Drosera Operator CLI
+## 4. Deploy Contract & Trap
 ```bash
-droseraup
-```
+mkdir my-drosera-trap && cd my-drosera-trap
 
-✅ This downloads the **drosera** and **drosera-operator** binaries to `~/.drosera/bin/`.
+# Replace below with your GitHub credentials
+git config --global user.email "Github_Email"
+git config --global user.name "Github_Username"
 
-(You can also install a specific version like `droseraup -v v1.16.2`, but default is fine.)
+# Initialize trap
+forge init -t drosera-network/trap-foundry-template
+bun install
+forge build
 
----
-
-## 4. Register Your Operator Node
-- **Replace** `YOUR_ETH_PRIVATE_KEY_HERE` with your actual private key (without `0x` prefix).
-- **Example command**:
-
-```bash
-drosera-operator register \
-  --eth-rpc-url https://ethereum-holesky-rpc.publicnode.com \
-  --eth-private-key YOUR_ETH_PRIVATE_KEY_HERE
-```
-
-✅ Registration complete.
-
-(‼️ If it fails, make sure your Holesky ETH balance is sufficient.)
-
----
-
-## 5. Create the Database Directory
-```bash
-sudo mkdir -p /var/lib/drosera-data
-sudo chown -R root:root /var/lib/drosera-data
-sudo chmod -R 700 /var/lib/drosera-data
-```
-
-✅ This is where Drosera will store persistent data.
-
----
-
-## 6. Set Up Systemd Service for Auto-Start
-
-**Create the service file:**
-```bash
-sudo nano /etc/systemd/system/drosera-operator.service
-```
-
-**Paste this config inside:**
-```ini
-[Unit]
-Description=Drosera Operator Node
-After=network.target
-
-[Service]
-User=root
-Restart=always
-RestartSec=5
-Environment="DRO_DB_FILE_PATH=/var/lib/drosera-data/db.sqlite"
-Environment="DRO__DROSERA_ADDRESS=0xea08f7d533C2b9A62F40D5326214f39a8E3A32F8"
-Environment="DRO__LISTEN_ADDRESS=0.0.0.0"
-Environment="DRO__ETH__CHAIN_ID=17000"
-Environment="DRO__ETH__RPC_URL=https://ethereum-holesky-rpc.publicnode.com"
-Environment="DRO__ETH__PRIVATE_KEY=YOUR_ETH_PRIVATE_KEY_HERE"
-Environment="DRO__NETWORK__P2P_PORT=32325"
-ExecStart=/root/.drosera/bin/drosera-operator node
-
-[Install]
-WantedBy=multi-user.target
-```
-
-✅ Save and exit (`CTRL+O`, `ENTER`, `CTRL+X`).
-
-Now reload systemd and enable the service:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable drosera-operator
-sudo systemctl start drosera-operator
-```
-
-✅ Your node should now be running!
-
-**To check logs:**
-```bash
-sudo journalctl -u drosera-operator -f
+# Deploy trap (Replace xxx with your private key)
+DROSERA_PRIVATE_KEY=xxx drosera apply
+# Use --eth-rpc-url if you face RPC errors:
+DROSERA_PRIVATE_KEY=xxx drosera apply --eth-rpc-url YOUR_RPC_URL
 ```
 
 ---
 
-## 7. Configure the UFW Firewall (Optional but Recommended)
+## 5. Dashboard & Bloom Boost
+1. Go to: https://app.drosera.io
+2. Connect your wallet and view traps under "Traps Owned"
+3. Click your trap, press **"Send Bloom Boost"**, and deposit Holesky ETH.
+
+---
+
+## 6. Fetch Blocks (Optional)
 ```bash
-sudo ufw allow 22/tcp   # SSH
-sudo ufw allow 32325/tcp # P2P port
-sudo ufw allow 32324/tcp # HTTP liveness port
+drosera dryrun
+```
+
+---
+
+## 7. Whitelist Operator
+```bash
+cd my-drosera-trap
+nano drosera.toml
+
+# Add to the bottom:
+private_trap = true
+whitelist = ["YOUR_OPERATOR_ADDRESS"]
+
+# Save and reapply config:
+DROSERA_PRIVATE_KEY=xxx drosera apply
+# Or with RPC:
+DROSERA_PRIVATE_KEY=xxx drosera apply --eth-rpc-url YOUR_RPC_URL
+```
+
+---
+
+## 8. Operator CLI Setup
+```bash
+cd ~
+curl -LO https://github.com/drosera-network/releases/releases/download/v1.16.2/drosera-operator-v1.16.2-x86_64-unknown-linux-gnu.tar.gz
+tar -xvf drosera-operator-*.tar.gz
+sudo cp drosera-operator /usr/bin
+drosera-operator --version
+```
+
+---
+
+## 9. Pull Operator Docker Image
+```bash
+docker pull ghcr.io/drosera-network/drosera-operator:latest
+```
+
+---
+
+## 10. Register Operator
+```bash
+drosera-operator register --eth-rpc-url https://ethereum-holesky-rpc.publicnode.com --eth-private-key YOUR_OPERATOR_PRIVATE_KEY
+```
+
+---
+
+## 11. Open Ports
+```bash
+sudo ufw allow ssh
+sudo ufw allow 22
+sudo ufw allow 31313/tcp
+sudo ufw allow 31314/tcp
 sudo ufw enable
 ```
 
-✅ Firewall configured.
-
 ---
 
-# 🧩 OPTIONAL: Set Up Delegation Client (Highly Recommended)
+## 12. Run Operator (Choose One Method)
 
-If you are whitelisted for automatic Trap delegation:
-
----
-
-## 8. Install Drosera Delegation Client
+### Method 1: Docker
 ```bash
-cd ~
-curl -LO https://github.com/drosera-network/releases/releases/download/v1.0.2/drosera-delegation-client-v1.0.2-x86_64-unknown-linux-gnu.tar.gz
-tar -xvf drosera-delegation-client-v1.0.2-x86_64-unknown-linux-gnu.tar.gz
+git clone https://github.com/0xmoei/Drosera-Network
+cd Drosera-Network
+cp .env.example .env
+nano .env     # Add your private key and VPS IP
+nano docker-compose.yaml    # Add your private Holesky RPC
+
+docker compose up -d
+
+# Check logs
+docker logs -f drosera-node
 ```
 
-✅ Delegation client ready.
-
----
-
-## 9. Run the Delegation Client
-
-**Start it with:**
+### Method 2: SystemD
 ```bash
-./drosera-delegation-client \
-  --eth-rpc-url https://ethereum-holesky-rpc.publicnode.com \
-  --eth-private-key YOUR_ETH_PRIVATE_KEY_HERE \
-  --delegation-server-url https://delegation-server.testnet.drosera.io
-```
+sudo tee /etc/systemd/system/drosera.service > /dev/null <<EOF
+[Unit]
+Description=drosera node service
+After=network-online.target
 
-✅ It will automatically opt you into Traps.
+[Service]
+User=$USER
+Restart=always
+RestartSec=15
+LimitNOFILE=65535
+ExecStart=$(which drosera-operator) node --db-file-path \$HOME/.drosera.db \
+  --network-p2p-port 31313 --server-port 31314 \
+  --eth-rpc-url YOUR_RPC \
+  --eth-backup-rpc-url https://1rpc.io/holesky \
+  --drosera-address YOUR_TRAP_ADDRESS \
+  --eth-private-key YOUR_PRIVATE_KEY \
+  --listen-address 0.0.0.0 \
+  --network-external-p2p-address YOUR_VPS_IP \
+  --disable-dnr-confirmation true
 
----
+[Install]
+WantedBy=multi-user.target
+EOF
 
-# 🎯 Quick Full Command Summary
-```bash
-# Install dependencies
-sudo apt update && sudo apt install -y curl clang libssl-dev tar ufw
-
-# Install droseraup
-curl -L https://app.drosera.io/install | bash
-source ~/.bashrc
-
-# Install drosera binaries
-droseraup
-
-# Register your operator
-drosera-operator register --eth-rpc-url https://ethereum-holesky-rpc.publicnode.com --eth-private-key YOUR_ETH_PRIVATE_KEY_HERE
-
-# Create DB directory
-sudo mkdir -p /var/lib/drosera-data
-sudo chown -R root:root /var/lib/drosera-data
-sudo chmod -R 700 /var/lib/drosera-data
-
-# Create and configure systemd service
-sudo nano /etc/systemd/system/drosera-operator.service
-# (Paste systemd config from above)
-
-# Enable and start service
 sudo systemctl daemon-reload
-sudo systemctl enable drosera-operator
-sudo systemctl start drosera-operator
+sudo systemctl enable drosera
+sudo systemctl start drosera
 
-# Install and run Delegation Client
-cd ~
-curl -LO https://github.com/drosera-network/releases/releases/download/v1.0.2/drosera-delegation-client-v1.0.2-x86_64-unknown-linux-gnu.tar.gz
-tar -xvf drosera-delegation-client-v1.0.2-x86_64-unknown-linux-gnu.tar.gz
-./drosera-delegation-client --eth-rpc-url https://ethereum-holesky-rpc.publicnode.com --eth-private-key YOUR_ETH_PRIVATE_KEY_HERE --delegation-server-url https://delegation-server.testnet.drosera.io
+# Monitor
+journalctl -u drosera.service -f
 ```
 
 ---
 
-# ✅ VPS Drosera Operator Setup — DONE
+## 13. Opt-In Operator to Trap
+- Visit dashboard
+- Open your trap
+- Click **"Opt-in"**
 
-If you follow this exactly, you **should not hit any errors**.
-If anything fails during the service run, just check:
+---
+
+## 14. Node Liveness
+- Check for **green blocks** in the dashboard
+
+---
+
+## 15. Run a 2nd Operator (Docker)
+1. Stop SystemD operator:
 ```bash
-sudo journalctl -u drosera-operator -f
+sudo systemctl stop drosera
+sudo systemctl disable drosera
+```
+2. Create new EVM wallet, get Holesky ETH
+3. Update whitelist:
+```bash
+cd ~/my-drosera-trap
+nano drosera.toml
+# Add both operator addresses:
+whitelist = ["Operator1_Address", "Operator2_Address"]
+DROSERA_PRIVATE_KEY=xxx drosera apply
+```
+4. Register 2nd operator:
+```bash
+drosera-operator register --eth-rpc-url https://ethereum-holesky-rpc.publicnode.com --eth-private-key 2nd_Operator_Privatekey
+```
+5. Open extra ports:
+```bash
+sudo ufw allow 31315/tcp
+sudo ufw allow 31316/tcp
+```
+6. Edit docker-compose.yaml for 2nd operator:
+```yaml
+version: '3'
+services:
+  drosera2:
+    image: ghcr.io/drosera-network/drosera-operator:latest
+    container_name: drosera-node2
+    ports:
+      - "31315:31313"
+      - "31316:31314"
+    volumes:
+      - drosera_data2:/data
+    command: node --db-file-path /data/drosera2.db --network-p2p-port 31313 --server-port 31314 \
+      --eth-rpc-url YOUR_RPC --drosera-address YOUR_TRAP_ADDRESS \
+      --eth-private-key 2nd_Operator_Privatekey --listen-address 0.0.0.0 \
+      --network-external-p2p-address YOUR_VPS_IP --disable-dnr-confirmation true
+
+volumes:
+  drosera_data2:
+```
+7. Run:
+```bash
+docker compose up -d
 ```
 
 ---
+
+## ✅ You're Done
+- Visit https://app.drosera.io
+- Verify both operators show under your trap
+- Monitor health & continue exploring Drosera
+
+---
+
+For updates, troubleshooting or deeper integrations, refer to [Drosera Docs](https://app.drosera.io/) or the original [Moei Guide](https://github.com/0xmoei/Drosera-Network).
 
